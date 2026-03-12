@@ -1,2 +1,6 @@
 # Depth-Map-Visualization
-A small script based on open3d can change the depth map into 3d point clouds.
+This is an Open3D-based program for converting depth maps into point clouds.
+
+# To Do
+requirements.txt
+manual

@@ -94,7 +94,7 @@ class Depth3DPro(QMainWindow):
 
     def update_vis(self):
         self.vis.poll_events()
-        self.vis.update_render()
+        self.vis.update_renderer()
 
     def open_file(self):
         path, _ = QFileDialog.getOpenFileName(self, "选择深度图", "", "Images (*.png *.jpg *.bmp)")

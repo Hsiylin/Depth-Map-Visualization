@@ -6,6 +6,20 @@ import cv2
 import numpy as np
 import open3d as o3d
 
+# 剔除异常数据并滤波降噪
+def preprocess_depth_map(depth_map, min_range=0.1, max_range=50.0):
+
+    # 异常值剔除
+    processed_depth = np.where((depth_map < min_range) | (depth_map > max_range), 0, depth_map)
+    
+    # 中值滤波
+    processed_depth = cv2.medianBlur(processed_depth.astype(np.float32), 3)
+
+    # 双边滤波
+    processed_depth = cv2.bilateralFilter(processed_depth, d=5, sigmaColor=0.05, sigmaSpace=5)
+    
+    return processed_depth
+
 def generate_pcd(image_path, fx = 500.0, fy = 500.0, cx = 100, cy = 100):
 
     depth_data = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
@@ -17,6 +31,9 @@ def generate_pcd(image_path, fx = 500.0, fy = 500.0, cx = 100, cy = 100):
     # 确保深度数据是 uint16 或 float32 类型，否则o3d无法转换成点云
     if depth_data.dtype != np.uint16 and depth_data.dtype != np.float32:
         depth_data = depth_data.astype(np.uint16) 
+
+    # 预处理深度图
+    depth_data = preprocess_depth_map(depth_data)
         
     o3d_depth = o3d.geometry.Image(depth_data)
 

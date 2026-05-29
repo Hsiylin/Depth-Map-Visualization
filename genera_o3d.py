@@ -18,9 +18,14 @@ def preprocess_depth_map(depth_map, min_range=0.1, max_range=65536):
     processed_depth = cv2.medianBlur(processed_depth.astype(np.float32), 3)
 
     # 双边滤波
-    processed_depth = cv2.bilateralFilter(processed_depth, d=5, sigmaColor=0.05, sigmaSpace=5)
+    processed_depth = cv2.bilateralFilter(processed_depth, d=5, sigmaColor=0.005, sigmaSpace=5)
+    processed_depth = np.where(valid_mask, processed_depth, 0.0)
+
+    sobelx = cv2.Sobel(processed_depth, cv2.CV_32F, 1, 0, ksize=3)
+    sobely = cv2.Sobel(processed_depth, cv2.CV_32F, 0, 1, ksize=3)
+    gradient_magnitude = np.sqrt(sobelx**2 + sobely**2)
     
-    final_depth = np.where(valid_mask, processed_depth, 0.0)
+    final_depth = np.where(gradient_magnitude < 0.05, processed_depth, 0.0)
 
     return final_depth.astype(np.float32)
 

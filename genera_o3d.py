@@ -7,33 +7,71 @@ import numpy as np
 import open3d as o3d
 
 # 剔除异常数据并滤波降噪
-def preprocess_depth_map(depth_map, min_range=0.1, max_range=50.0):
+def preprocess_depth_map(depth_map, min_range=0.1, max_range=65536):
 
     # 异常值剔除
     processed_depth = np.where((depth_map < min_range) | (depth_map > max_range), 0, depth_map)
     
+    valid_mask = (processed_depth > 0)
+
     # 中值滤波
     processed_depth = cv2.medianBlur(processed_depth.astype(np.float32), 3)
 
     # 双边滤波
     processed_depth = cv2.bilateralFilter(processed_depth, d=5, sigmaColor=0.05, sigmaSpace=5)
     
-    return processed_depth
+    final_depth = np.where(valid_mask, processed_depth, 0.0)
+
+    return final_depth.astype(np.float32)
+
+def adaptive_extract_depth(img, min_depth=0.0, max_depth=1.0):
+    # 单通道，灰度图
+    if len(img.shape) == 2 or (len(img.shape) == 3 and img.shape[2] == 1):
+        return img.astype(np.float32) / 255.0
+    
+    # 三通道
+    if len(img.shape) == 3 and img.shape[2] == 3:
+        # 检查RGB通道
+        channel_diff = np.max(np.abs(img[:,:,0].astype(int) - img[:,:,1].astype(int)))
+        
+        if channel_diff < 5:  
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            return gray.astype(np.float32) / 255.0
+        else:
+            hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            h_channel = hsv[:, :, 0].astype(np.float32)
+            s_channel = hsv[:, :, 1]
+            v_channel = hsv[:, :, 2]
+            valid_color = (s_channel > 30) & (v_channel > 30)
+            
+            h_normalized = np.clip(h_channel, 0, 180) / 180.0
+            depth_recovered = h_normalized * (max_depth - min_depth) + min_depth
+            
+            # 将黑白背景区域强制归零
+            depth_recovered = np.where(valid_color, depth_recovered, 0.0)
+            return depth_recovered
 
 def generate_pcd(image_path, fx = 500.0, fy = 500.0, cx = 100, cy = 100):
 
-    depth_data = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    depth_data = cv2.imread(image_path, cv2.IMREAD_COLOR)
     
-    # 如果是彩色图则转化为灰度图
-    if len(depth_data.shape) > 2:
-        depth_data = cv2.cvtColor(depth_data, cv2.COLOR_BGR2GRAY)
+    depth_data = adaptive_extract_depth(depth_data)
     
-    # 确保深度数据是 uint16 或 float32 类型，否则o3d无法转换成点云
-    if depth_data.dtype != np.uint16 and depth_data.dtype != np.float32:
-        depth_data = depth_data.astype(np.uint16) 
+    '''
+    print("--- 滤波前深度图状态检查 ---")
+    print(f"数据类型 (dtype): {depth_data.dtype}")
+    print(f"矩阵形状 (shape): {depth_data.shape}")
+    print(f"最大深度值 (max): {np.max(depth_data)}")
+    print(f"最小深度值 (min): {np.min(depth_data)}")
+    # 计算图像中有多少个像素点的值大于 0
+    non_zero_count = np.sum(depth_data > 0)
+    print(f"有效大于0的像素点数量: {non_zero_count}")
+    print("--------------------------------")
+    '''
+
 
     # 预处理深度图
-    depth_data = preprocess_depth_map(depth_data)
+    depth_data = preprocess_depth_map(depth_data,0,2)
         
     o3d_depth = o3d.geometry.Image(depth_data)
 
